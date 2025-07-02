@@ -1,0 +1,575 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -300
+      ],
+      "id": "d33c70d2-1956-4fbf-8be8-32c1a069635b",
+      "name": "When clicking ‘Test workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "binaryPropertyName": "=data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        -300
+      ],
+      "id": "f160fb30-ddd4-4a10-b6af-2c81d1c3c478",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        280,
+        160
+      ],
+      "id": "16c5c768-e5f3-409c-993f-ef10fad2b1c7",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "ICCkgFxqH3pBRjgg",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=SAS below: \n{{ $json.data }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        440,
+        160
+      ],
+      "id": "cdf652c9-93e2-4419-be35-4aa0257f5a6a",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Sas code as follows:\n {{ $json.data }}",
+        "options": {
+          "systemMessage": "=You are an ORCHESTRATION AGENT responsible for an autonomous, three-stage pipeline:\n\n1. Coder Agent → produces SQL from SAS (optionally incorporating feedback).\n2. Reviewer Agent → approves or returns feedback.\n3. Documentation Agent → writes markdown explaining the final SQL.\n\n### ABSOLUTE RULES\n• The sequence **Coder → Reviewer → Documentation** is mandatory; no skipping.  \n• The Reviewer must be called at least once and not more than THREE times (iterations = 3).  \n• After 3 iterations, if still unapproved, treat the last SQL as “good enough” and continue.  \n• Only after Reviewer approval *or* hitting the 3-iteration limit may you invoke Documentation.  \n• On completion, output **one** JSON object containing BOTH `final_sql` and `documentation_markdown`.  \n• If either field is missing or empty, you must retry the missing step; do NOT emit partial output.  \n• Do NOT include any text before or after the JSON block.  \n• Do NOT ask the user for input at any stage.\n\n### DETAILED STEPS\n\n**Step 1 – Initial translation**  \n• Send `sas_code` to Coder Agent; receive `sql_code`.\n\n**Step 2 – Review loop (max 3)**  \nSet iteration = 1.\nLOOP WHILE iteration ≤ 3:\n• Send sql_code and sas_code to Reviewer Agent.\n• IF Reviewer returns “Approved”:\nBREAK LOOP.\nELSE\n• Send sas_code + reviewer feedback to Coder Agent → receive new sql_code.\n• Increment iteration.\nEND LOOP\n\n**Step 3 – Documentation**  \n• Send the final `sql_code` (approved or last attempt) to Documentation Agent (include `sas_code` for context).  \n• Receive `markdown_doc`.\n\n**Step 4 – Final output**  \nReturn EXACTLY:\n\n```json\n{\n  \"status\": \"success\",\n  \"final_sql\": \"<INSERT_FINAL_SQL_CODE>\",\n  \"documentation_markdown\": \"<INSERT_MARKDOWN_DOC>\"\n}\n\nVALIDATION\n\nBefore returning, verify:\n• final_sql is non-empty SQL text.\n• documentation_markdown is non-empty markdown.\nIf either check fails, rerun the missing agent step(s) until both are present.\n\nBegin now by sending sas_code to the Coder Agent (iteration 1)."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        420,
+        0
+      ],
+      "id": "8952a74c-f042-4d44-95df-470d1ce7ae6b",
+      "name": "Orchestration Agent "
+    },
+    {
+      "parameters": {
+        "description": "Translate SAS code into equivalent SQL statements. Provide the original SAS code and any reviewer feedback to guide the translation. The agent will generate SQL code that mirrors the logic and structure of the SAS code, incorporating feedback to refine the output as needed.\n\nProvide the following Inputs: \n\t•\tsas_code: The original SAS code to be translated. ￼\n\t•\treviewer_feedback (optional): Feedback from the reviewer agent to be considered for refining the SQL code.\n",
+        "workflowId": {
+          "__rl": true,
+          "value": "nV6w2wvGS3GyKtJx",
+          "mode": "list",
+          "cachedResultName": "Coder Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        360,
+        560
+      ],
+      "id": "8fa8855c-536e-4b66-85a3-48dca40c6696",
+      "name": "Coder Agent"
+    },
+    {
+      "parameters": {
+        "description": "Evaluate SQL code that has been translated from SAS to ensure it accurately replicates the original logic and functionality. Provide the original SAS code and the corresponding SQL code. The agent will assess the SQL for correctness, adherence to best practices, and alignment with the SAS code’s intent. It will return a verdict indicating approval or the need for revisions, along with specific feedback if improvements are necessary.\n\nProvide the inputs: \n\t•\tsas_code: The original SAS code. ￼\n\t•\tsql_code: The SQL code generated from the SAS code.",
+        "workflowId": {
+          "__rl": true,
+          "value": "E4q4wCdTmpkGEXkZ",
+          "mode": "list",
+          "cachedResultName": "Review Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        540,
+        560
+      ],
+      "id": "088b2b0c-c5ea-4cad-9f25-f3973febc7c6",
+      "name": "Review Agent"
+    },
+    {
+      "parameters": {
+        "description": "Call this tool to:\n\nGenerate clear, concise, and human-readable documentation for SQL code that has been translated from SAS. Provide the SQL code, and optionally the original SAS code for context. The agent will produce documentation that explains the purpose, logic, and structure of the SQL code, making it accessible to stakeholders such as developers, analysts, and auditors.\n\nProvide inputs:\n\t•\tsql_code: The SQL code that has been translated from SAS.\n\t•\tsas_code (optional): The original SAS code for reference, if needed to understand the context.",
+        "workflowId": {
+          "__rl": true,
+          "value": "VJNlGEE8gc3j4Btq",
+          "mode": "list",
+          "cachedResultName": "Documentation Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        560
+      ],
+      "id": "b42585dd-c69c-4769-bafa-4ba8750229a7",
+      "name": "Documentation Agent"
+    },
+    {
+      "parameters": {
+        "errorMessage": "=Staus: {{ $('Extract SQL and Documentation').item.json.status }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        400
+      ],
+      "id": "0f6f88c8-27aa-4ed3-89eb-5b49d4d2f0cf",
+      "name": "Stop and Error"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "file",
+        "owner": {
+          "__rl": true,
+          "value": "https://github.com/thebnut",
+          "mode": "url"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "sas-migration",
+          "mode": "list",
+          "cachedResultName": "sas-migration",
+          "cachedResultUrl": "https://github.com/thebnut/sas-migration"
+        },
+        "filePath": "=SQL/{{ $('Choose SAS File').item.json.sas_file }}_{{Math.floor(1000 + Math.random() * 9000)}}.sql",
+        "fileContent": "={{ $json.final_sql }}",
+        "commitMessage": "Add"
+      },
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        200
+      ],
+      "id": "c3421660-593a-494c-90df-c0b01cc3e606",
+      "name": "Write SAS file",
+      "webhookId": "bdb235a1-48f8-4712-90a8-00144ff0f6ea",
+      "credentials": {
+        "githubOAuth2Api": {
+          "id": "5XKPEnDKFaidnxek",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "file",
+        "owner": {
+          "__rl": true,
+          "value": "https://github.com/thebnut",
+          "mode": "url"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "sas-migration",
+          "mode": "list",
+          "cachedResultName": "sas-migration",
+          "cachedResultUrl": "https://github.com/thebnut/sas-migration"
+        },
+        "filePath": "=Doc/{{ $('Choose SAS File').item.json.sas_file }}_{{Math.floor(1000 + Math.random() * 9000)}}.sql.doc",
+        "fileContent": "={{ $('Test for errors').item.json.documentation_markdown }}",
+        "commitMessage": "Add"
+      },
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        1660,
+        200
+      ],
+      "id": "9f39f8cb-2384-4ee5-8552-f2abaffc1285",
+      "name": "Write Documentation",
+      "webhookId": "bdb235a1-48f8-4712-90a8-00144ff0f6ea",
+      "credentials": {
+        "githubOAuth2Api": {
+          "id": "5XKPEnDKFaidnxek",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Additional Agents\n\n",
+        "height": 420,
+        "width": 580
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        300,
+        300
+      ],
+      "typeVersion": 1,
+      "id": "8e5e1378-3997-4cdf-a4f6-7dd94066760f",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a8410496-bef5-492d-a2da-e5ae929d3774",
+              "name": "sas_file",
+              "value": "GCVM.sas",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        620,
+        -300
+      ],
+      "id": "b3ef6173-f38c-4075-86e5-91c0062dc677",
+      "name": "Choose SAS File"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "file",
+        "operation": "get",
+        "owner": {
+          "__rl": true,
+          "value": "https://github.com/thebnut",
+          "mode": "url"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "sas-migration",
+          "mode": "list",
+          "cachedResultName": "sas-migration",
+          "cachedResultUrl": "https://github.com/thebnut/sas-migration"
+        },
+        "filePath": "={{ $json.sas_file }}",
+        "additionalParameters": {}
+      },
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        840,
+        -300
+      ],
+      "id": "0df6de66-a237-4805-8988-e87970cd3da3",
+      "name": "Retrieve from Github",
+      "webhookId": "d2ce8e08-132e-4eef-b510-712d70ba9513",
+      "credentials": {
+        "githubOAuth2Api": {
+          "id": "5XKPEnDKFaidnxek",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the raw input JSON object\nconst input = $input.first().json;\n\n// Access the raw output string from the orchestration agent\nconst raw = input.output;\n\nif (!raw) {\n  throw new Error(\"No output field found in input\");\n}\n\n// Try to extract JSON block if wrapped in ```json ``` code fences\nconst blockMatch = raw.match(/```json\\s*([\\s\\S]*?)\\s*```/);\n\nlet jsonString;\nif (blockMatch) {\n  jsonString = blockMatch[1];\n} else {\n  // Fallback to raw string (in case no code block wrapper)\n  jsonString = raw.trim();\n}\n\n// Try to parse the JSON string\nlet parsed;\ntry {\n  parsed = JSON.parse(jsonString);\n} catch (e) {\n  throw new Error(\"Failed to parse JSON: \" + e.message + \"\\nRaw JSON:\\n\" + jsonString);\n}\n\n// Return the parsed object as a single item\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "id": "56e11074-b047-4685-af55-8c0f70e20726",
+      "name": "Extract SQL and Documentation"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0ad202cc-2509-4801-93bd-60b2c6dc85dc",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1220,
+        300
+      ],
+      "id": "476f03cb-e1d7-4933-88d2-d887d261c220",
+      "name": "Test for errors"
+    },
+    {
+      "parameters": {
+        "content": "Coder Agent is an expert at translating SAS to SQL",
+        "height": 300,
+        "width": 160
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        320,
+        400
+      ],
+      "typeVersion": 1,
+      "id": "50d5410c-ef4c-46b0-ba17-fdbb087159f3",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "Review Agent critically reviews the Coder Agent's work and provides feedback",
+        "height": 300,
+        "width": 160
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        500,
+        400
+      ],
+      "typeVersion": 1,
+      "id": "e4b53c40-0118-4f66-87c4-8db95db2947e",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "Documentation takes the final output and documents it",
+        "height": 300,
+        "width": 160
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 1,
+      "id": "48046d25-0b3a-474c-b4bf-540b5eaea9c9",
+      "name": "Sticky Note3"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "Choose SAS File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Orchestration Agent ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Orchestration Agent ",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Orchestration Agent ",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Orchestration Agent ": {
+      "main": [
+        [
+          {
+            "node": "Extract SQL and Documentation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coder Agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestration Agent ",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestration Agent ",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Documentation Agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Orchestration Agent ",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write SAS file": {
+      "main": [
+        [
+          {
+            "node": "Write Documentation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose SAS File": {
+      "main": [
+        [
+          {
+            "node": "Retrieve from Github",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve from Github": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract SQL and Documentation": {
+      "main": [
+        [
+          {
+            "node": "Test for errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test for errors": {
+      "main": [
+        [
+          {
+            "node": "Write SAS file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "511fd13393486ac469bd876e2e42f2377c0d9a37096b802a45226f63fb7fb118"
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "30eafe4c-9093-4d27-a5dd-63ca72230aea",
+      "typeVersion": 1.1,
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        260,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.query }}",
+        "options": {
+          "systemMessage": "You are a Documentation Agent.  \nYour single responsibility is to generate clear, comprehensive, markdown-formatted documentation that explains a final SQL script translated from a SAS program.\n\n────────────────────────────────────────────────────────\nINPUTS\n• sql_code   – (string) the final SQL script, already reviewed or accepted.  \n• sas_code   – (optional string) the original SAS program, provided for context only.\n\nDELIVERABLE\n• A markdown document that helps developers, data engineers, and auditors quickly understand:\n    – The purpose of the SQL (high-level objective).  \n    – Key transformation steps (window functions, joins, dedup logic, etc.).  \n    – Important business or data-quality filters.  \n    – Any custom field derivations or calculations.  \n    – Assumptions or dialect-specific notes (if relevant).  \n\nSTYLE & FORMAT\n• Begin with an `#`-level title (e.g., **# Documentation for <table/operation>**).  \n• Use sub-headings (`##`) for major sections (Purpose, Logic & Steps, Key Points, etc.).  \n• Favour concise bullet lists for step-by-step logic.  \n• Include fenced code blocks *(triple backticks)* **only** if you need to show small SQL snippets for illustration; do not paste the entire SQL.  \n• Keep prose short, active-voice, and free of SAS jargon unless explaining a direct mapping.\n\nOUTPUT PROTOCOL\n• Return **only** the markdown text (no JSON, no commentary, no code fences around the whole document).  \n• Do **not** ask questions or request clarification.  \n• If `sql_code` is missing or empty, respond with the line:  \n  `ERROR: Missing SQL code – cannot document.`\n\nBegin documentation as soon as `sql_code` is supplied.\n────────────────────────────────────────────────────────"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        480,
+        340
+      ],
+      "id": "70081e98-e8ca-45ae-af3e-ab8db856c3c3",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        380,
+        540
+      ],
+      "id": "4a45a66e-a97c-45ac-acad-3bd1e6af05e3",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "ICCkgFxqH3pBRjgg",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.query }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        500,
+        560
+      ],
+      "id": "97e52ca4-9edd-4559-8879-deff8ae4177d",
+      "name": "Simple Memory"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "511fd13393486ac469bd876e2e42f2377c0d9a37096b802a45226f63fb7fb118"
+  }
+}
